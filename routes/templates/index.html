@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SMS Ethiopia API v2 – Reminder Tracker</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; }
+        h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+        p.sub { color: #6b7280; margin-top: 0; }
+        .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; }
+        input, textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; }
+        button { background: #2563eb; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 0.75rem; }
+        button:hover { background: #1d4ed8; }
+        button.sync { background: #4b5563; padding: 0.35rem 0.7rem; font-size: 0.8rem; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.75rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f3f4f6; font-weight: 600; }
+        .badge { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
+        .ACCEPTED { background: #e5e7eb; color: #374151; }
+        .SENT { background: #dbeafe; color: #1e40af; }
+        .DELIVERED { background: #dcfce7; color: #166534; }
+        .UNDELIVERED { background: #fee2e2; color: #991b1b; }
+        .mono { font-family: monospace; font-size: 0.8rem; color: #4b5563; }
+        .char-info { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+    <h1>Clinic Appointment SMS Tracker (API v2)</h1>
+    <p class="sub">Real-time ULID tracking, segment counting, polling sync, and webhook DLR handling.</p>
+
+    <div class="card">
+        <form action="/send" method="post">
+            <div class="grid">
+                <div>
+                    <label>Patient Name</label>
+                    <input type="text" name="patient_name" placeholder="e.g. Abebe Kebede" required>
+                </div>
+                <div>
+                    <label>Phone Number (MSISDN)</label>
+                    <input type="text" name="msisdn" placeholder="251911639555" required>
+                </div>
+            </div>
+            <div style="margin-top: 0.75rem;">
+                <label>Reminder Message (Supports Amharic UCS-2 & English)</label>
+                <textarea id="msg" name="message_text" rows="2" placeholder="ጤና ይስጥልኝ! ነገ ጠዋት 3:00 ሰዓት ቀጠሮ አለዎት።" required oninput="updateCounter()"></textarea>
+                <div id="counter" class="char-info">0 chars · GSM-7 (160/segment)</div>
+            </div>
+            <button type="submit">Send SMS via API v2</button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>MSISDN</th>
+                <th>ULID (v2 ID)</th>
+                <th>Segments</th>
+                <th>Status</th>
+                <th>Updated</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reminders %}
+            <tr>
+                <td><strong>{{ r.patient_name }}</strong><br><span style="font-size:0.8rem;color:#6b7280;">{{ r.message_text }}</span></td>
+                <td>{{ r.msisdn }}</td>
+                <td class="mono">{{ r.sms_ulid }}</td>
+                <td>{{ r.segments }}</td>
+                <td>
+                    <span class="badge {{ r.status }}">{{ r.status }}</span>
+                    {% if r.status == 'UNDELIVERED' %}
+                    <div style="color:#991b1b;font-size:0.75rem;font-weight:600;margin-top:2px;">⚠ Call Patient</div>
+                    {% endif %}
+                </td>
+                <td style="font-size:0.8rem;color:#6b7280;">{{ r.updated_at }}</td>
+                <td>
+                    {% if r.sms_ulid %}
+                    <form action="/sync/{{ r.sms_ulid }}" method="post" style="margin:0;">
+                        <button type="submit" class="sync">Sync Status</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center;color:#6b7280;padding:2rem;">No reminders sent yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function updateCounter() {
+            const text = document.getElementById('msg').value;
+            const isUnicode = /[^\x00-\x7F]/.test(text);
+            const limit = isUnicode ? 70 : 160;
+            const segs = text.length === 0 ? 0 : Math.ceil(text.length / (isUnicode ? (text.length > 70 ? 67 : 70) : (text.length > 160 ? 153 : 160)));
+            document.getElementById('counter').innerText = `${text.length} chars · ${isUnicode ? 'UCS-2/Amharic' : 'GSM-7'} · Est. ${segs} segment(s)`;
+        }
+    </script>
+</body>
+</html>
